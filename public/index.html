@@ -263,8 +263,7 @@ svg{display:block;flex:none}
 .ai-txt{position:relative;z-index:1;text-align:center;padding-top:calc(var(--u)*27)}
 .ai-txt b{display:block;font-size:calc(var(--u)*17.5);font-weight:500;letter-spacing:-.012em}
 .ai-txt p{margin-top:calc(var(--u)*13.5);display:inline-flex;align-items:center;gap:calc(var(--u)*10);font-size:calc(var(--u)*14);color:#eceef2;letter-spacing:-.016em}
-.spin{width:calc(var(--u)*18);height:calc(var(--u)*18);animation:spin 1.1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+.spin{width:calc(var(--u)*18);height:calc(var(--u)*18)}
 
 /* ---------- Ads ---------- */
 .ads{padding:calc(var(--u)*25) calc(var(--u)*24) calc(var(--u)*27) calc(var(--u)*23);display:flex;flex-direction:column;overflow:hidden;
@@ -475,8 +474,117 @@ svg{display:block;flex:none}
   .c-name{white-space:normal}
   .c-name .s,.c-admin .s{display:none}.c-name .f,.c-admin .f{display:inline}
 }
-@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+/* Initial frame only. The script removes this class when the entrance settles. */
+html.entrance-prep :is(
+  .side .logo,.side .nav,.top .brand,.top .tools,
+  .col-left>.sec-head h1,.col-left>.sec-head p,.col-left>.sec-head .select,
+  .col-right>.sec-head h1,.col-right>.sec-head p,.col-right>.sec-head .select,
+  .overview,.overview .pt,.topcamp,
+  .balance .bal-top,.balance .bal-mid,.balance .ai-txt,
+  .ads,.popular
+){opacity:0}
 </style>
+<script>
+(() => {
+  const root = document.documentElement;
+  const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+  if (motionPreference.matches) return;
+
+  root.classList.add('entrance-prep');
+  root.dataset.entranceState = 'pending';
+  const animations = [];
+  const skipped = [];
+  let complete = false;
+  const finish = () => {
+    if (complete) return;
+    complete = true;
+    root.classList.remove('entrance-prep');
+    root.dataset.entranceState = 'complete';
+    for (const animation of animations) animation.cancel();
+    for (const element of skipped) element.style.removeProperty('opacity');
+    const line = document.querySelector('.overview .chart svg path[stroke="#0a74ff"]');
+    if (line) {
+      line.style.removeProperty('stroke-dasharray');
+      line.style.removeProperty('stroke-dashoffset');
+    }
+    clearTimeout(failsafe);
+    motionPreference.removeEventListener('change', onPreferenceChange);
+  };
+  const onPreferenceChange = event => { if (event.matches) finish(); };
+  const failsafe = setTimeout(finish, 4200);
+  motionPreference.addEventListener('change', onPreferenceChange);
+
+  const visible = element => {
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && box.bottom > 0 &&
+      box.top < innerHeight && box.right > 0 && box.left < innerWidth;
+  };
+  const easing = 'cubic-bezier(.22,1,.36,1)';
+  const motions = {
+    chrome: [{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'none'}],
+    heading: [{opacity:1,clipPath:'inset(0 0 100% 0)',transform:'translateY(9px)'},{opacity:1,clipPath:'inset(0 0 0 0)',transform:'none'}],
+    detail: [{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'none'}],
+    card: [{opacity:0,transform:'translateY(10px) scale(.992)'},{opacity:1,transform:'none'}],
+    marker: [{opacity:0,transform:'scale(.94)'},{opacity:1,transform:'none'}]
+  };
+  // The shell establishes the frame; headings lead into data, then supporting panels.
+  const cues = [
+    ['.side .logo',0,520,'chrome'],
+    ['.top .brand',70,570,'chrome'],
+    ['.side .nav:not(.nav-bottom)',120,570,'chrome'],
+    ['.side .nav-bottom',180,570,'chrome'],
+    ['.top .tools',180,670,'chrome'],
+    ['.col-left>.sec-head h1',280,720,'heading'],
+    ['.col-left>.sec-head p',470,540,'detail'],
+    ['.col-left>.sec-head .select',550,510,'detail'],
+    ['.col-right>.sec-head h1',390,720,'heading'],
+    ['.col-right>.sec-head p',570,540,'detail'],
+    ['.col-right>.sec-head .select',650,510,'detail'],
+    ['.overview',580,790,'card'],
+    ['.balance .bal-top',650,780,'detail'],
+    ['.balance .bal-mid',830,650,'detail'],
+    ['.balance .ai-txt',990,650,'detail'],
+    ['.topcamp',1020,730,'card'],
+    ['.ads',1080,740,'card'],
+    ['.popular',1190,760,'card'],
+    ['.overview .pt',1370,450,'marker']
+  ];
+
+  const run = () => {
+    if (complete) return;
+    root.dataset.entranceState = 'playing';
+    try {
+      for (const [selector, delay, duration, motion] of cues) {
+        const element = document.querySelector(selector);
+        if (!element) continue;
+        if (!visible(element)) {
+          element.style.opacity = '1';
+          skipped.push(element);
+          continue;
+        }
+        animations.push(element.animate(motions[motion], {
+          delay, duration, easing, fill:'both'
+        }));
+      }
+      const line = document.querySelector('.overview .chart svg path[stroke="#0a74ff"]');
+      if (line && visible(document.querySelector('.overview'))) {
+        const length = line.getTotalLength();
+        line.style.strokeDasharray = String(length);
+        line.style.strokeDashoffset = String(length);
+        animations.push(line.animate([
+          {strokeDashoffset:length},{strokeDashoffset:0}
+        ],{delay:760,duration:850,easing,fill:'both'}));
+      }
+      Promise.allSettled(animations.map(animation => animation.finished)).then(finish);
+    } catch (_) {
+      finish();
+    }
+  };
+  document.addEventListener('DOMContentLoaded', () => {
+    document.fonts.ready.then(run, finish);
+  }, {once:true});
+})();
+</script>
 </head>
 <body>
 <div class="app">
