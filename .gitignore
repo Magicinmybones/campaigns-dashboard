@@ -1,0 +1,12 @@
+# Local dependencies, tool state, and temporary output
+node_modules/
+.wrangler/
+.cache/
+.tmp/
+tmp/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
